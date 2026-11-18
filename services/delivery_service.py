@@ -1,19 +1,50 @@
 import httpx
 
-from models import Event, Endpoint
+from sqlalchemy.orm import Session
+
+from models import (
+    Delivery,
+    DeliveryAttempt,
+    DeliveryStatus,
+    Event,
+    Endpoint
+)
+
+from services.http_service import send_event
 
 
-def send_event(event: Event, endpoint: Endpoint):
-    payload = {
-        "event_type": event.event_type,
-        "data": event.data
-    }
-
-    response = httpx.post(
-        url=endpoint.url,
-        json=payload,
-        timeout=10.0
+def process_delivery(
+    db: Session,
+    delivery: Delivery,
+    event: Event,
+    endpoint: Endpoint
+):
+    attempt = DeliveryAttempt(
+        delivery_id=delivery.id,
+        attempt_number=len(delivery.attempts) + 1
     )
 
-    response.raise_for_status()
-    return response
+    try:
+        response = send_event(event, endpoint)
+
+        attempt.response_status = response.status_code
+        attempt.response_body = response.text
+
+        delivery.status = DeliveryStatus.SUCCESS
+
+    except httpx.HTTPStatusError as err:
+        attempt.response_status = err.response.status_code
+        attempt.response_body = err.response.text
+        attempt.error_message = str(err)
+
+        delivery.status = DeliveryStatus.FAILED
+
+    except httpx.RequestError as err:
+        attempt.error_message = str(err)
+
+        delivery.status = DeliveryStatus.FAILED
+
+    db.add(attempt)
+    db.commit()
+
+    return attempt
