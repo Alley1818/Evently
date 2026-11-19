@@ -35,8 +35,11 @@ class Repository:
         result = db.scalars(all_events).all()
         return result
 
+
     @staticmethod
-    def get_event_by_id(event_id: int, db: Session):
-        event = select(Event).where(Event.id == event_id)
-        result = db.scalars(event).first()
+    def get_related_endpoints(db: Session):
+        endpoints = select(Endpoint)
+        result = db.scalars(endpoints).all()
         return result
+
+
