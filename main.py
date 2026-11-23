@@ -38,7 +38,7 @@ def get_events(db: Session = Depends(get_db)):
     return all_events
 
 @app.get("/events/{event_id}", response_model=EventResponse)
-def get_event(event_id:int, db: Session = Depends(get_db)):
+def get_event_by_id(event_id:int, db: Session = Depends(get_db)):
     event = Repository.get_event_by_id(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")

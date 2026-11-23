@@ -38,8 +38,14 @@ class Repository:
 
     @staticmethod
     def get_related_endpoints(db: Session):
-        endpoints = select(Endpoint)
+        endpoints = select(Endpoint).where(Endpoint)
         result = db.scalars(endpoints).all()
+        return result
+
+    @staticmethod
+    def get_event_by_id(db: Session, event_id: int):
+        event = select(Event).where(Event.id == event_id)
+        result = db.scalars(event).all()
         return result
 
 

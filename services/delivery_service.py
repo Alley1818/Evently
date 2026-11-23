@@ -1,3 +1,5 @@
+from select import select
+
 import httpx
 
 from sqlalchemy.orm import Session
@@ -49,4 +51,23 @@ def process_delivery(
 
     return attempt
 
-def
+
+def create_deliveries(db: Session, event: Event):
+    statement = select(Endpoint)
+    endpoints = db.scalars(statement).all()
+
+    deliveries = []
+
+    for endpoint in endpoints:
+        delivery = Delivery(
+            event_id=event.id,
+            endpoint_id=endpoint.id,
+            status=DeliveryStatus.PENDING
+        )
+
+        db.add(delivery)
+        deliveries.append(delivery)
+
+    db.commit()
+
+    return deliveries
