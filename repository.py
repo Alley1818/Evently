@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from models import Endpoint, Event
+from models import Endpoint, Event, Delivery
 
 
 class Repository:
@@ -48,4 +48,9 @@ class Repository:
         result = db.scalars(event).all()
         return result
 
+    @staticmethod
+    def get_deliveries(db: Session):
+        deliveries = select(Delivery).order_by(Delivery.created_at.desc())
+        result = db.scalars(deliveries).all()
+        return result
 
