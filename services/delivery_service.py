@@ -71,3 +71,14 @@ def create_deliveries(db: Session, event: Event):
     db.commit()
 
     return deliveries
+
+def dispatch_event(db: Session, event: Event):
+    deliveries = create_deliveries(db, event)
+    for delivery in deliveries:
+        endpoint = db.get(Endpoint, delivery.endpoint_id)
+        process_delivery(
+            db=db,
+            delivery=delivery,
+            event=event,
+            endpoint=endpoint
+        )
