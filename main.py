@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from services.delivery_service import dispatch_delivery
+from services.delivery_service import dispatch_event
 from db import get_db
 from repository import Repository
 from schemas import EventCreate, EventResponse, EndpointResponse, DeliveryResponse
@@ -30,13 +30,15 @@ def create_event(
         data=event.data,
         db=db
     )
-    dispatch_delivery(db, new_event)
+    dispatch_event(db, new_event)
     return new_event
+
 
 @app.get("/events", response_model=List[EventResponse])
 def get_events(db: Session = Depends(get_db)):
     all_events = Repository.get_events(db=db)
     return all_events
+
 
 @app.get("/events/{event_id}", response_model=EventResponse)
 def get_event_by_id(event_id:int, db: Session = Depends(get_db)):

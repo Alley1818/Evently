@@ -16,6 +16,7 @@ class Repository:
         db.refresh(new_endpoint)
         return new_endpoint
 
+
     @staticmethod
     def save_event(event_type: str, data: dict, db: Session):
         new_event = Event(
@@ -42,11 +43,13 @@ class Repository:
         result = db.scalars(endpoints).all()
         return result
 
+
     @staticmethod
     def get_event_by_id(db: Session, event_id: int):
         event = select(Event).where(Event.id == event_id)
-        result = db.scalars(event).all()
+        result = db.scalars(event).one_or_none()
         return result
+
 
     @staticmethod
     def get_deliveries(db: Session):

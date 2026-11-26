@@ -28,9 +28,9 @@ class Event(Base):
 
 
 class DeliveryStatus(str, Enum):
-    PENDING = "pending"
-    SUCCESS = "success"
-    FAILED = "failed"
+    pending = "pending"
+    success = "success"
+    failed = "failed"
 
 
 class Delivery(Base):
@@ -49,7 +49,7 @@ class Delivery(Base):
             DeliveryStatus,
             values_callable=lambda enum: [item.value for item in enum]
         ),
-        default=DeliveryStatus.PENDING,
+        default=DeliveryStatus.pending,
         nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(

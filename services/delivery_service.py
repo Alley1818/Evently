@@ -1,4 +1,4 @@
-from select import select
+from sqlalchemy import select
 
 import httpx
 
@@ -32,19 +32,19 @@ def process_delivery(
         attempt.response_status = response.status_code
         attempt.response_body = response.text
 
-        delivery.status = DeliveryStatus.SUCCESS
+        delivery.status = DeliveryStatus.success
 
     except httpx.HTTPStatusError as err:
         attempt.response_status = err.response.status_code
         attempt.response_body = err.response.text
         attempt.error_message = str(err)
 
-        delivery.status = DeliveryStatus.FAILED
+        delivery.status = DeliveryStatus.failed
 
     except httpx.RequestError as err:
         attempt.error_message = str(err)
 
-        delivery.status = DeliveryStatus.FAILED
+        delivery.status = DeliveryStatus.failed
 
     db.add(attempt)
     db.commit()
@@ -62,7 +62,7 @@ def create_deliveries(db: Session, event: Event):
         delivery = Delivery(
             event_id=event.id,
             endpoint_id=endpoint.id,
-            status=DeliveryStatus.PENDING
+            status=DeliveryStatus.pending
         )
 
         db.add(delivery)
