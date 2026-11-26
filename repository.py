@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from models import Endpoint, Event, Delivery
@@ -57,3 +58,8 @@ class Repository:
         result = db.scalars(deliveries).all()
         return result
 
+    @staticmethod
+    def get_delivery_by_id(db: Session, delivery_id: int):
+        delivery = select(Delivery).where(Delivery.id == delivery_id)
+        result = db.scalars(delivery).one_or_none()
+        return result

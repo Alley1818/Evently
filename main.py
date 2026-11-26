@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from services.delivery_service import dispatch_event
 from db import get_db
 from repository import Repository
-from schemas import EventCreate, EventResponse, EndpointResponse, DeliveryResponse
+from schemas import EventCreate, EventResponse, EndpointResponse, DeliveryResponse, DeliveryDetailResponse
 
 app = FastAPI()
 
@@ -53,3 +53,10 @@ def get_event_by_id(event_id:int, db: Session = Depends(get_db)):
 def get_deliveries(db: Session = Depends(get_db)):
     deliveries = Repository.get_deliveries(db=db)
     return deliveries
+
+@app.get("/deliveries/{delivery_id}", response_model=DeliveryDetailResponse)
+def get_delivery_by_id(delivery_id:int, db: Session = Depends(get_db)):
+    delivery = Repository.get_delivery_by_id(delivery_id=delivery_id,db=db)
+    if delivery is None:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return delivery

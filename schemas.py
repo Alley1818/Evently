@@ -40,3 +40,13 @@ class DeliveryResponse(BaseModel):
     status: DeliveryStatus
     created_at: datetime
     updated_at: datetime
+
+class DeliveryAttemptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_number: int
+    response_status: int | None
+    error_message: str | None
+
+class DeliveryDetailResponse(DeliveryResponse):
+    attempts: list[DeliveryAttemptResponse]
