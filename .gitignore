@@ -4,12 +4,11 @@ __pycache__/
 
 .venv/
 venv/
-
-
 .idea/
-
 .env
 
+.DS_Store
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov/.DS_Store
+frontend/.DS_Store
