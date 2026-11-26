@@ -4,6 +4,8 @@
   gap: 18px;
 }
 
+.records-page > .page-heading { margin-bottom: 1px; }
+
 .records-panel, .records-detail-fields, .records-attempt-card {
   min-width: 0;
   background: var(--surface);
@@ -95,7 +97,8 @@
 .records-id-link,
 .records-date,
 .records-copy-value code,
-.records-detail-fields dd > code {
+.records-detail-fields dd > code,
+.records-detail-fields time {
   font-family: var(--mono);
   font-size: 0.8125rem;
 }
@@ -132,7 +135,7 @@
 .records-id-link { color: var(--accent); }
 .records-name-link { font-weight: 500; }
 
-.records-id-link:hover, .records-name-link:hover, .records-back:hover {
+.records-id-link:hover, .records-name-link:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -184,20 +187,6 @@
   gap: 4px;
 }
 
-.records-row-chevron {
-  display: inline-grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 5px;
-  color: var(--subtle);
-}
-
-.records-row-chevron:hover {
-  color: var(--text);
-  background: var(--accent-soft);
-}
-
 .records-empty {
   display: grid;
   justify-items: center;
@@ -224,27 +213,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.records-outcome > span[aria-hidden] {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
 .records-outcome--success { color: var(--success); }
 .records-outcome--failed { color: var(--error); }
 .records-outcome--pending { color: var(--pending); }
-
-.records-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  justify-self: start;
-  margin-bottom: -8px;
-  color: var(--muted);
-  font-size: 0.875rem;
-  text-decoration: none;
-}
 
 .records-detail-fields {
   display: grid;

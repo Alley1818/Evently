@@ -32,8 +32,6 @@ export interface DeliveryRecord {
   updated_at: string;
 }
 
-export type LiveDeliverySummary = DeliveryRecord;
-
 export interface DeliveryAttempt {
   id: number;
   delivery_id: number;

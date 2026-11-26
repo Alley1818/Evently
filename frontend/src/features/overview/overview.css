@@ -307,8 +307,20 @@
 @media (max-width: 520px) {
   .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-metric { padding: 10px 11px; }
+  .overview-activity-heading { flex-wrap: wrap; gap: 6px; }
   .overview-legend { gap: 9px; }
   .overview-chart { height: 200px; }
+  .overview-table { min-width: 0; table-layout: fixed; }
+  .overview-table th, .overview-table td { padding-inline: 6px; }
+  .overview-table th:first-child, .overview-table td:first-child {
+    width: 34%;
+    padding-inline-start: 12px;
+  }
+  .overview-table th:nth-child(2) { width: 31%; }
+  .overview-table th:nth-child(3) { width: 23%; }
+  .overview-table th:last-child, .overview-table td:last-child { display: none; }
+  .overview-event-type, .overview-endpoint-name { overflow: hidden; text-overflow: ellipsis; }
+  .overview-table .status-badge { padding-inline: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

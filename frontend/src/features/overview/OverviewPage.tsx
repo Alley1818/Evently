@@ -16,7 +16,7 @@ import { useDemoData, useLiveDeliveries } from '@/api/queries'
 import { usePreferences } from '@/app/preferences'
 import { Button, PageHeader, Panel, Select, StatePanel, StatusBadge, TableSkeleton } from '@/components/shared/ui'
 import { formatId, latestAttempt } from '@/lib/format'
-import type { DemoData, LiveDeliverySummary } from '@/types'
+import type { DeliveryRecord, DemoData } from '@/types'
 import './overview.css'
 
 const hour = 60 * 60 * 1000
@@ -118,10 +118,10 @@ function DeliveryActivity({ activity, period }: { activity: ActivityBucket[]; pe
 
   return (
     <Panel className="overview-panel" aria-labelledby="activity-heading">
-      <div className="overview-panel-heading">
+      <div className="overview-panel-heading overview-activity-heading">
         <div>
           <h2 id="activity-heading">Delivery activity</h2>
-          <p>Delivery outcomes by creation time · {periods[period].interval} buckets</p>
+          <p>By creation time · {periods[period].interval} buckets</p>
         </div>
         <div className="overview-legend" aria-hidden="true">
           <span><i className="overview-key-success" />Successful</span>
@@ -174,7 +174,7 @@ function DeliveryActivity({ activity, period }: { activity: ActivityBucket[]; pe
   )
 }
 
-function RecentDeliveries({ data, deliveries }: { data?: DemoData; deliveries: LiveDeliverySummary[] }) {
+function RecentDeliveries({ data, deliveries }: { data?: DemoData; deliveries: DeliveryRecord[] }) {
   const { formatDate, mode } = usePreferences()
   const events = new Map(data?.events.map((event) => [event.id, event.event_type]))
   const endpoints = new Map(data?.endpoints.map((endpoint) => [endpoint.id, endpoint.name]))
@@ -207,9 +207,9 @@ function RecentDeliveries({ data, deliveries }: { data?: DemoData; deliveries: L
                   <tr key={delivery.id}>
                     <td>
                       <Link className="overview-record-link" to={`/deliveries/${delivery.id}`}>{formatId('delivery', delivery.id, mode)}</Link>
-                      <span className="overview-event-type">{eventLabel}</span>
+                      <span className="overview-event-type" title={eventLabel}>{eventLabel}</span>
                     </td>
-                    <td>{endpointLabel}</td>
+                    <td className="overview-endpoint-name" title={endpointLabel}>{endpointLabel}</td>
                     <td><StatusBadge status={delivery.status} /></td>
                     {data && <td className="overview-http">{attempt?.response_status ?? '—'}</td>}
                     <td className="overview-created"><time dateTime={delivery.created_at}>{formatDate(delivery.created_at)}</time></td>

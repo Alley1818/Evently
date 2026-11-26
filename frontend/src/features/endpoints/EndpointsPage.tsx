@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { CheckCircle2, ChevronRight, Plus, Webhook, X } from 'lucide-react'
+import { CheckCircle2, Plus, Webhook, X } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useCreateEndpoint, useDemoData } from '@/api/queries'
@@ -7,7 +7,7 @@ import { usePreferences } from '@/app/preferences'
 import { Button, CopyButton, Input, PageHeader, StatePanel, TableSkeleton } from '@/components/shared/ui'
 import { formatId } from '@/lib/format'
 import type { EndpointRecord } from '@/types'
-import { BackToRecords, CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
+import { CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
 import { RecordsSearch, RecordsTable } from '../RecordsTable'
 import { DeliveryTable, getDeliveryRows } from '../deliveries/DeliveryTable'
 
@@ -17,9 +17,10 @@ const URL_MAX_LENGTH = 2048
 function validateEndpointUrl(value: string) {
   if (!value) return 'Enter a destination URL.'
   if (value.length > URL_MAX_LENGTH) return `Use ${URL_MAX_LENGTH} characters or fewer.`
+  if (!/^https?:\/\//i.test(value)) return 'Enter a valid HTTP or HTTPS URL.'
   try {
     const url = new URL(value)
-    if (url.hostname && (url.protocol === 'http:' || url.protocol === 'https:')) return undefined
+    if (url.hostname) return undefined
   } catch {
     return 'Enter a valid HTTP or HTTPS URL.'
   }
@@ -28,6 +29,8 @@ function validateEndpointUrl(value: string) {
 
 function AddEndpointDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (endpoint: EndpointRecord) => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const nameInput = useRef<HTMLInputElement>(null)
+  const urlInput = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -38,13 +41,20 @@ function AddEndpointDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   const urlError = validateEndpointUrl(cleanUrl)
 
   useEffect(() => {
-    if (dialog.current && !dialog.current.open) dialog.current.showModal()
+    if (!dialog.current || dialog.current.open) return
+    dialog.current.showModal()
+    nameInput.current?.focus()
   }, [])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (create.isPending) return
     setSubmitted(true)
-    if (nameError || urlError || create.isPending) return
+    if (nameError || urlError) {
+      const invalidField = nameError ? nameInput : urlInput
+      invalidField.current?.focus()
+      return
+    }
     create.mutate({ name: cleanName, url: cleanUrl }, {
       onSuccess: (endpoint) => {
         onCreated(endpoint)
@@ -67,12 +77,12 @@ function AddEndpointDialog({ onClose, onCreated }: { onClose: () => void; onCrea
         <div className="records-dialog-body">
           <div className="records-form-field">
             <label htmlFor="endpoint-name">Name</label>
-            <Input id="endpoint-name" placeholder="Billing service" autoFocus value={name} onChange={(event) => setName(event.target.value)} disabled={create.isPending} aria-invalid={submitted && !!nameError} aria-describedby={submitted && nameError ? 'endpoint-name-error' : undefined} />
+            <Input ref={nameInput} id="endpoint-name" placeholder="Billing service" required value={name} onChange={(event) => setName(event.target.value)} disabled={create.isPending} aria-invalid={submitted && !!nameError} aria-describedby={submitted && nameError ? 'endpoint-name-error' : undefined} />
             {submitted && nameError && <span className="records-field-error" id="endpoint-name-error">{nameError}</span>}
           </div>
           <div className="records-form-field">
             <label htmlFor="endpoint-url">Destination URL</label>
-            <Input id="endpoint-url" type="url" placeholder="https://example.com/webhooks" value={url} onChange={(event) => setUrl(event.target.value)} disabled={create.isPending} aria-invalid={submitted && !!urlError} aria-describedby={submitted && urlError ? 'endpoint-url-error' : undefined} />
+            <Input ref={urlInput} id="endpoint-url" type="url" placeholder="https://example.com/webhooks" required value={url} onChange={(event) => setUrl(event.target.value)} disabled={create.isPending} aria-invalid={submitted && !!urlError} aria-describedby={submitted && urlError ? 'endpoint-url-error' : undefined} />
             {submitted && urlError && <span className="records-field-error" id="endpoint-url-error">{urlError}</span>}
           </div>
           {create.isError && <p className="records-field-error" role="alert">{create.error.message}</p>}
@@ -119,7 +129,7 @@ export function EndpointsPage() {
     {
       accessorKey: 'id',
       header: 'Endpoint ID',
-      cell: ({ row }) => <Link className="records-id-link" to={`/endpoints/${row.original.id}`}>{formatId('endpoint', row.original.id, mode)}</Link>,
+      cell: ({ row }) => <code>{formatId('endpoint', row.original.id, mode)}</code>,
     },
     {
       accessorKey: 'url',
@@ -146,15 +156,6 @@ export function EndpointsPage() {
         return counts ? <code>{counts.delivered} / {counts.total}</code> : <MissingValue label="No deliveries" />
       },
     },
-    {
-      id: 'details',
-      header: () => <span className="sr-only">Details</span>,
-      cell: ({ row }) => (
-        <Link className="records-row-chevron" aria-label={`Open endpoint ${row.original.name}`} to={`/endpoints/${row.original.id}`}>
-          <ChevronRight size={16} />
-        </Link>
-      ),
-    },
   ], [formatDate, mode, stats])
 
   return (
@@ -166,18 +167,23 @@ export function EndpointsPage() {
           <CheckCircle2 aria-hidden="true" size={19} />
           <div>
             <strong>Endpoint added · {success.name}</strong>
-            <div>{mode === 'demo'
-              ? <Link className="records-id-link" to={`/endpoints/${success.id}`}>{formatId('endpoint', success.id, mode)}</Link>
-              : <CopyValue value={String(success.id)} display={formatId('endpoint', success.id, mode)} label="Copy registered endpoint ID" />}
-              <CopyValue value={success.url} label="Copy registered endpoint URL" />
-              <time dateTime={success.created_at}>{formatDate(success.created_at)}</time>
+            <div>
+              {mode === 'demo' ? (
+                <Link className="records-id-link" to={`/endpoints/${success.id}`}>{formatId('endpoint', success.id, mode)}</Link>
+              ) : (
+                <>
+                  <CopyValue value={String(success.id)} label="Copy registered endpoint ID" />
+                  <CopyValue value={success.url} label="Copy registered endpoint URL" />
+                  <time dateTime={success.created_at}>{formatDate(success.created_at)}</time>
+                </>
+              )}
             </div>
           </div>
           <Button variant="ghost" size="icon" aria-label="Dismiss confirmation" onClick={() => setCreated(undefined)}><X size={16} /></Button>
         </div>
       )}
       {mode === 'live'
-        ? <StatePanel title="Endpoint list unavailable" description="The API supports endpoint registration. Listing and viewing existing endpoints require read endpoints." icon={<Webhook size={19} />} />
+        ? <StatePanel title="Endpoint list unavailable" description="The current API supports registration. Endpoint listings require GET /endpoints." icon={<Webhook size={19} />} />
         : demo.isLoading ? <TableSkeleton rows={6} columns={5} />
         : demo.isError ? <RequestError error={demo.error} onRetry={() => void demo.refetch()} />
         : <RecordsTable label="Endpoints" rows={rows} columns={columns} getRowId={(row) => String(row.id)} initialSorting={[{ id: 'created_at', desc: true }]}
@@ -200,7 +206,6 @@ export function EndpointDetailsPage() {
 
   return (
     <div className="records-page">
-      <BackToRecords to="/endpoints">Endpoints</BackToRecords>
       <PageHeader title={record?.name ?? 'Endpoint details'} />
       {id === undefined ? <StatePanel title="Endpoint not found" description="The endpoint ID in this URL is invalid." icon={<Webhook size={19} />} />
         : mode === 'live' ? <StatePanel title="Endpoint details unavailable" description="The API does not expose individual endpoints or their deliveries yet." icon={<Webhook size={19} />} />

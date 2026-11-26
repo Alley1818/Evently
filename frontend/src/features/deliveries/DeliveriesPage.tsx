@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, History, RotateCcw, Send, X } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import type { ColumnDef } from '@tanstack/react-table'
-import { useDemoData, useLiveDeliveries } from '@/api/queries'
+import { useDemoData, useEvents, useLiveDeliveries } from '@/api/queries'
 import { usePreferences } from '@/app/preferences'
 import { Button, CopyButton, JsonViewer, PageHeader, Select, StatePanel, StatusBadge, TableSkeleton } from '@/components/shared/ui'
 import { formatId } from '@/lib/format'
-import type { DeliveryAttempt, DeliveryStatus, LiveDeliverySummary } from '@/types'
-import { BackToRecords, CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
-import { ClearFilters, RecordsTable, TimeFilter, inTimePeriod, type TimePeriod } from '../RecordsTable'
+import type { DeliveryAttempt, DeliveryStatus } from '@/types'
+import { CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
+import { ClearFilters, TimeFilter, inTimePeriod, type TimePeriod } from '../RecordsTable'
 import { DeliveryTable, getDeliveryRows } from './DeliveryTable'
+import { LiveDeliveryTable } from './LiveDeliveryTable'
 
 interface DeliveryFilters {
   status: DeliveryStatus | ''
@@ -94,99 +94,25 @@ function EmptyDeliveries({ filtering }: { filtering: boolean }) {
 }
 
 function LiveDeliveries() {
-  const { formatDate } = usePreferences()
   const deliveries = useLiveDeliveries()
+  const events = useEvents()
   const [status, setStatus] = useState<DeliveryFilters['status']>('')
   const [endpoint, setEndpoint] = useState('')
   const [type, setType] = useState('')
   const [period, setPeriod] = useState<TimePeriod>('all')
-  const options = useMemo(() => {
-    const endpointIds = new Set<number>()
-    const eventTypes = new Set<string>()
-    const fields = new Set<string>(['id', 'status', 'created_at'])
-
-    for (const row of deliveries.data ?? []) {
-      if (row.endpoint_id !== undefined) endpointIds.add(row.endpoint_id)
-      if (row.event_type !== undefined) eventTypes.add(row.event_type)
-      for (const key of Object.keys(row)) {
-        if (row[key as keyof LiveDeliverySummary] !== undefined) fields.add(key)
-      }
-    }
-
-    return {
-      endpointIds: [...endpointIds].sort((left, right) => left - right),
-      eventTypes: [...eventTypes].sort(),
-      fields,
-    }
-  }, [deliveries.data])
+  const endpointIds = useMemo(() => [...new Set(deliveries.data?.map(({ endpoint_id }) => endpoint_id))]
+    .sort((left, right) => left - right), [deliveries.data])
+  const eventTypes = useMemo(() => new Map(events.data?.map(({ id, event_type }) => [id, event_type])), [events.data])
+  const availableTypes = useMemo(() => [...new Set(eventTypes.values())].sort(), [eventTypes])
   const rows = useMemo(() => {
     const now = Date.now()
     return (deliveries.data ?? []).filter((row) => (
       (!status || row.status === status)
       && (!endpoint || String(row.endpoint_id) === endpoint)
-      && (!type || row.event_type === type)
+      && (!type || eventTypes.get(row.event_id) === type)
       && inTimePeriod(row.created_at, period, now)
     ))
-  }, [deliveries.data, endpoint, period, status, type])
-  const columns = useMemo<ColumnDef<LiveDeliverySummary>[]>(() => [
-    {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'Delivery ID',
-      cell: ({ row }) => <CopyValue label="Copy delivery ID" value={String(row.original.id)} />,
-    },
-    {
-      id: 'event_id',
-      accessorKey: 'event_id',
-      header: 'Event ID',
-      cell: ({ row }) => row.original.event_id === undefined ? <MissingValue /> : (
-        <Link className="records-id-link" to={`/events/${row.original.event_id}`}>{row.original.event_id}</Link>
-      ),
-    },
-    {
-      id: 'event_type',
-      accessorKey: 'event_type',
-      header: 'Event type',
-      cell: ({ row }) => row.original.event_type === undefined
-        ? <MissingValue />
-        : <code className="records-truncate" title={row.original.event_type}>{row.original.event_type}</code>,
-    },
-    {
-      id: 'endpoint_id',
-      accessorKey: 'endpoint_id',
-      header: 'Endpoint ID',
-      cell: ({ row }) => row.original.endpoint_id === undefined ? <MissingValue /> : <code>{row.original.endpoint_id}</code>,
-    },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-    {
-      id: 'attempts',
-      accessorFn: ({ attempts }) => Array.isArray(attempts) ? attempts.length : attempts,
-      header: 'Attempts',
-      cell: ({ getValue }) => {
-        const count = getValue<number | undefined>()
-        return count === undefined ? <MissingValue /> : <code>{count}</code>
-      },
-    },
-    {
-      id: 'created_at',
-      header: 'Created at',
-      accessorFn: (delivery) => Date.parse(delivery.created_at),
-      cell: ({ row }) => <time className="records-date" dateTime={row.original.created_at}>{formatDate(row.original.created_at)}</time>,
-    },
-    {
-      id: 'updated_at',
-      accessorFn: ({ updated_at }) => updated_at === undefined ? undefined : Date.parse(updated_at),
-      header: 'Updated at',
-      cell: ({ row }) => row.original.updated_at === undefined
-        ? <MissingValue />
-        : <time className="records-date" dateTime={row.original.updated_at}>{formatDate(row.original.updated_at)}</time>,
-    },
-  ], [formatDate])
+  }, [deliveries.data, endpoint, eventTypes, period, status, type])
   const filtering = status !== '' || endpoint !== '' || type !== '' || period !== 'all'
 
   function clearFilters() {
@@ -196,29 +122,26 @@ function LiveDeliveries() {
     setPeriod('all')
   }
 
-  if (deliveries.isLoading) return <TableSkeleton rows={8} columns={3} />
+  if (deliveries.isLoading) return <TableSkeleton rows={8} columns={6} />
   if (deliveries.isError) return <RequestError error={deliveries.error} onRetry={() => void deliveries.refetch()} />
 
   return (
-    <RecordsTable
-      label="Deliveries"
+    <LiveDeliveryTable
       rows={rows}
-      columns={columns.filter(({ id }) => id && options.fields.has(id))}
-      getRowId={(row) => String(row.id)}
-      initialSorting={[{ id: 'created_at', desc: true }]}
+      eventTypes={eventTypes}
       toolbar={
         <>
           <StatusFilter value={status} onChange={setStatus} />
-          {options.endpointIds.length > 0 && (
+          {endpointIds.length > 0 && (
             <Select className="records-select" aria-label="Endpoint ID" value={endpoint} onChange={(event) => setEndpoint(event.target.value)}>
               <option value="">All endpoints</option>
-              {options.endpointIds.map((id) => <option key={id} value={id}>{id}</option>)}
+              {endpointIds.map((id) => <option key={id} value={id}>{id}</option>)}
             </Select>
           )}
-          {options.eventTypes.length > 0 && (
+          {availableTypes.length > 0 && (
             <Select className="records-select" aria-label="Event type" value={type} onChange={(event) => setType(event.target.value)}>
               <option value="">All event types</option>
-              {options.eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              {availableTypes.map((value) => <option key={value} value={value}>{value}</option>)}
             </Select>
           )}
           <TimeFilter value={period} onChange={setPeriod} />
@@ -290,32 +213,59 @@ function AttemptTimeline({ attempts }: { attempts: DeliveryAttempt[] }) {
   )
 }
 
-export function DeliveryDetailsPage() {
-  const params = useParams()
-  const id = getRecordId(params.id ?? params.deliveryId)
-  const { mode, formatDate } = usePreferences()
-  const demo = useDemoData()
-  const row = useMemo(() => mode === 'demo' ? getDeliveryRows(demo.data).find(({ delivery }) => delivery.id === id) : undefined, [demo.data, id, mode])
+function LiveDeliveryDetails({ id }: { id: number }) {
+  const { formatDate } = usePreferences()
+  const deliveries = useLiveDeliveries()
+  const record = deliveries.data?.find((delivery) => delivery.id === id)
 
   return (
     <div className="records-page">
-      <BackToRecords to="/deliveries">Deliveries</BackToRecords>
-      <PageHeader title={row ? formatId('delivery', row.delivery.id, mode) : 'Delivery details'} actions={row && (
+      <PageHeader title={record ? `Delivery ${record.id}` : 'Delivery details'} />
+      {deliveries.isLoading ? <TableSkeleton columns={3} rows={3} />
+        : deliveries.isError ? <RequestError error={deliveries.error} onRetry={() => void deliveries.refetch()} />
+        : !record ? <StatePanel title="Delivery not found" description="No delivery with this ID was returned by the API." icon={<Send size={19} />} />
+        : <>
+          <DetailFields fields={[
+            { label: 'Delivery ID', value: <CopyValue value={String(record.id)} label="Copy delivery ID" /> },
+            { label: 'Status', value: <StatusBadge status={record.status} /> },
+            { label: 'Event ID', value: (
+              <Link className="records-id-link" to={`/events/${record.event_id}`}>{record.event_id}</Link>
+            ) },
+            { label: 'Endpoint ID', value: <code>{record.endpoint_id}</code> },
+            { label: 'Created at', value: <time dateTime={record.created_at}>{formatDate(record.created_at)}</time> },
+            { label: 'Updated at', value: <time dateTime={record.updated_at}>{formatDate(record.updated_at)}</time> },
+          ]} />
+          <StatePanel
+            title="Attempt history unavailable"
+            description="The Live API currently provides delivery summaries. Request payloads and HTTP responses are available in Demo mode."
+            icon={<History size={19} />}
+          />
+        </>}
+    </div>
+  )
+}
+
+function DemoDeliveryDetails({ id }: { id: number }) {
+  const { formatDate } = usePreferences()
+  const demo = useDemoData()
+  const row = useMemo(() => getDeliveryRows(demo.data).find(({ delivery }) => delivery.id === id), [demo.data, id])
+
+  return (
+    <div className="records-page">
+      <PageHeader title={row ? formatId('delivery', row.delivery.id, 'demo') : 'Delivery details'} actions={row && (
         <Button disabled title="Retry requires a backend API"><RotateCcw size={15} aria-hidden="true" />Retry delivery</Button>
       )} />
-      {id === undefined ? <StatePanel title="Delivery not found" description="The delivery ID in this URL is invalid." icon={<Send size={19} />} />
-        : mode === 'live' ? <StatePanel title="Delivery details unavailable" description="The API does not expose individual deliveries or their attempts yet." icon={<Send size={19} />} />
-        : demo.isLoading ? <TableSkeleton columns={4} rows={4} />
+      {demo.isLoading ? <TableSkeleton columns={4} rows={4} />
         : demo.isError ? <RequestError error={demo.error} onRetry={() => void demo.refetch()} />
         : !row ? <StatePanel title="Delivery not found" description="This delivery does not exist in the demo dataset." icon={<Send size={19} />} />
         : <>
           <DetailFields fields={[
-            { label: 'Delivery ID', value: <CopyValue value={String(row.delivery.id)} display={formatId('delivery', row.delivery.id, mode)} label="Copy delivery ID" /> },
+            { label: 'Delivery ID', value: <CopyValue value={String(row.delivery.id)} display={formatId('delivery', row.delivery.id, 'demo')} label="Copy delivery ID" /> },
             { label: 'Status', value: <StatusBadge status={row.delivery.status} /> },
             { label: 'Last HTTP code', value: row.last?.response_status == null ? <MissingValue label="No HTTP response" /> : <code>{row.last.response_status}</code> },
-            { label: 'Event', value: <Link className="records-id-link" to={`/events/${row.delivery.event_id}`}>{formatId('event', row.delivery.event_id, mode)}</Link> },
+            { label: 'Event', value: <Link className="records-id-link" to={`/events/${row.delivery.event_id}`}>{formatId('event', row.delivery.event_id, 'demo')}</Link> },
             { label: 'Event type', value: row.event ? <code>{row.event.event_type}</code> : <MissingValue /> },
-            { label: 'Endpoint', value: <Link className="records-name-link" to={`/endpoints/${row.delivery.endpoint_id}`}>{row.endpoint?.name ?? formatId('endpoint', row.delivery.endpoint_id, mode)}</Link> },
+            { label: 'Endpoint', value: <Link className="records-name-link" to={`/endpoints/${row.delivery.endpoint_id}`}>{row.endpoint?.name ?? formatId('endpoint', row.delivery.endpoint_id, 'demo')}</Link> },
             { label: 'Created at', value: <time dateTime={row.delivery.created_at}>{formatDate(row.delivery.created_at)}</time> },
             { label: 'Updated at', value: <time dateTime={row.delivery.updated_at}>{formatDate(row.delivery.updated_at)}</time> },
             { label: 'Destination URL', value: row.endpoint ? <CopyValue value={row.endpoint.url} label="Copy destination URL" /> : <MissingValue /> },
@@ -328,4 +278,20 @@ export function DeliveryDetailsPage() {
         </>}
     </div>
   )
+}
+
+export function DeliveryDetailsPage() {
+  const id = getRecordId(useParams().id)
+  const { mode } = usePreferences()
+
+  if (id === undefined) {
+    return (
+      <div className="records-page">
+        <PageHeader title="Delivery details" />
+        <StatePanel title="Delivery not found" description="The delivery ID in this URL is invalid." icon={<Send size={19} />} />
+      </div>
+    )
+  }
+
+  return mode === 'live' ? <LiveDeliveryDetails id={id} /> : <DemoDeliveryDetails id={id} />
 }

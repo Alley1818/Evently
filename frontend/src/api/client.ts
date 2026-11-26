@@ -1,4 +1,4 @@
-import type { EndpointInput, EndpointRecord, EventInput, EventRecord, LiveDeliverySummary } from '@/types';
+import type { DeliveryRecord, EndpointInput, EndpointRecord, EventInput, EventRecord } from '@/types';
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 export const apiDocsUrl = `${baseUrl}/docs`;
@@ -50,7 +50,7 @@ function isEndpoint(value: unknown): value is EndpointRecord {
   return isRecord(value) && typeof value.name === 'string' && typeof value.url === 'string';
 }
 
-function isDeliverySummary(value: unknown): value is LiveDeliverySummary {
+function isDeliverySummary(value: unknown): value is DeliveryRecord {
   if (!isRecord(value)) return false;
   const { status, event_id, endpoint_id, updated_at } = value;
   return (status === 'pending' || status === 'success' || status === 'failed')
@@ -121,7 +121,7 @@ export const api = {
   getEvent: (id: number, signal?: AbortSignal) => request(`/events/${id}`, isEvent, { signal }),
   listDeliveries: (signal?: AbortSignal) => request(
     '/deliveries',
-    (value): value is LiveDeliverySummary[] => Array.isArray(value) && value.every(isDeliverySummary),
+    (value): value is DeliveryRecord[] => Array.isArray(value) && value.every(isDeliverySummary),
     { signal },
   ),
   createEvent: (input: EventInput) => request('/events', isEvent, {

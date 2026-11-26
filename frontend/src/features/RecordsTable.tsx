@@ -38,6 +38,7 @@ export function RecordsTable<T>({
     data: rows,
     getRowId,
     columns,
+    enableMultiSort: false,
     state: { sorting },
     initialState: { pagination: { pageIndex: 0, pageSize } },
     onSortingChange: setSorting,
@@ -129,7 +130,7 @@ export function ClearFilters({ onClick }: { onClick: () => void }) {
   )
 }
 
-export const timePeriods = {
+const timePeriods = {
   hour: { label: 'Last hour', duration: 60 * 60 * 1000 },
   day: { label: 'Last 24 hours', duration: 24 * 60 * 60 * 1000 },
   week: { label: 'Last 7 days', duration: 7 * 24 * 60 * 60 * 1000 },

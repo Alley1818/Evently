@@ -1,35 +1,36 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Plus, Radio, Send } from 'lucide-react'
+import { Check, Clock3, Radio, X } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import type { ColumnDef } from '@tanstack/react-table'
 import { ApiError } from '@/api/client'
-import { useDemoData, useEvent, useEvents } from '@/api/queries'
+import { useDemoData, useEvent, useEvents, useLiveDeliveries } from '@/api/queries'
 import { usePreferences } from '@/app/preferences'
-import { Button, JsonViewer, PageHeader, StatePanel, TableSkeleton } from '@/components/shared/ui'
+import { JsonViewer, PageHeader, StatePanel, TableSkeleton } from '@/components/shared/ui'
 import { formatId } from '@/lib/format'
 import type { DeliveryStatus, EventRecord } from '@/types'
-import { BackToRecords, CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
+import { CopyValue, DetailFields, EmptyRecords, MissingValue, RequestError, getRecordId } from '../RecordDetails'
 import { ClearFilters, RecordsSearch, RecordsTable, TimeFilter, inTimePeriod, type TimePeriod } from '../RecordsTable'
 import { DeliveryTable, getDeliveryRows } from '../deliveries/DeliveryTable'
-
-function PlaygroundLink() {
-  return <Button asChild><Link to="/playground"><Plus size={16} aria-hidden="true" />Send event</Link></Button>
-}
+import { LiveDeliveryTable } from '../deliveries/LiveDeliveryTable'
 
 type Outcomes = Record<DeliveryStatus, number>
 
 const outcomeLabels: Record<DeliveryStatus, string> = { success: 'Success', failed: 'Failed', pending: 'Pending' }
 const outcomesInOrder: DeliveryStatus[] = ['success', 'failed', 'pending']
+const outcomeIcons = { success: Check, failed: X, pending: Clock3 }
 
 function OutcomeCounts({ counts }: { counts: Outcomes }) {
   return (
     <span className="records-outcomes">
-      {outcomesInOrder.filter((status) => counts[status] > 0).map((status) => (
-        <span className={`records-outcome records-outcome--${status}`} key={status} title={`${counts[status]} ${outcomeLabels[status].toLowerCase()}`}>
-          <span aria-hidden="true" />
-          {counts[status]} <span className="sr-only">{outcomeLabels[status]}</span>
-        </span>
-      ))}
+      {outcomesInOrder.filter((status) => counts[status] > 0).map((status) => {
+        const Icon = outcomeIcons[status]
+        return (
+          <span className={`records-outcome records-outcome--${status}`} key={status} title={`${counts[status]} ${outcomeLabels[status].toLowerCase()}`}>
+            <Icon size={13} aria-hidden="true" />
+            {counts[status]} <span className="sr-only">{outcomeLabels[status]}</span>
+          </span>
+        )
+      })}
     </span>
   )
 }
@@ -40,17 +41,20 @@ export function EventsPage() {
   const { mode, formatDate } = usePreferences()
   const events = useEvents()
   const demo = useDemoData()
+  const liveDeliveries = useLiveDeliveries()
+  const deliveryData = mode === 'demo' ? demo.data?.deliveries : liveDeliveries.data
+  const deliveryDataAvailable = mode === 'demo' ? demo.isSuccess : liveDeliveries.isSuccess
+  const deliveryLoading = mode === 'demo' ? demo.isLoading : liveDeliveries.isLoading
+  const missingDeliveryLabel = deliveryLoading ? 'Loading delivery data' : 'Delivery data unavailable'
   const summary = useMemo(() => {
     const countsByEvent = new Map<number, Outcomes>()
-    if (mode === 'demo') {
-      for (const delivery of demo.data?.deliveries ?? []) {
-        const counts = countsByEvent.get(delivery.event_id) ?? { pending: 0, success: 0, failed: 0 }
-        counts[delivery.status] += 1
-        countsByEvent.set(delivery.event_id, counts)
-      }
+    for (const { event_id, status } of deliveryData ?? []) {
+      const counts = countsByEvent.get(event_id) ?? { pending: 0, success: 0, failed: 0 }
+      counts[status] += 1
+      countsByEvent.set(event_id, counts)
     }
     return countsByEvent
-  }, [mode, demo.data])
+  }, [deliveryData])
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
     const now = Date.now()
@@ -82,33 +86,24 @@ export function EventsPage() {
     {
       id: 'count',
       accessorFn: (event) => {
-        if (mode === 'live') return
+        if (!deliveryDataAvailable) return
         const counts = summary.get(event.id)
         return counts ? counts.success + counts.failed + counts.pending : 0
       },
       header: 'Deliveries',
-      enableSorting: mode === 'demo',
-      cell: ({ getValue }) => mode === 'demo' ? <code>{getValue<number>()}</code> : <MissingValue label="Delivery count unavailable in Live mode" />,
+      enableSorting: deliveryDataAvailable,
+      cell: ({ getValue }) => deliveryDataAvailable ? <code>{getValue<number>()}</code> : <MissingValue label={missingDeliveryLabel} />,
     },
     {
       id: 'outcome',
       header: 'Delivery outcome',
       cell: ({ row }) => {
-        if (mode === 'live') return <MissingValue label="Delivery outcomes unavailable in Live mode" />
+        if (!deliveryDataAvailable) return <MissingValue label={missingDeliveryLabel} />
         const counts = summary.get(row.original.id)
         return counts ? <OutcomeCounts counts={counts} /> : <span className="records-muted">No deliveries</span>
       },
     },
-    {
-      id: 'details',
-      header: () => <span className="sr-only">Details</span>,
-      cell: ({ row }) => (
-        <Link className="records-row-chevron" aria-label={`Open event ${row.original.id}`} to={`/events/${row.original.id}`}>
-          <ChevronRight size={16} />
-        </Link>
-      ),
-    },
-  ], [formatDate, mode, summary])
+  ], [deliveryDataAvailable, formatDate, missingDeliveryLabel, mode, summary])
   const filtering = search.trim().length > 0 || period !== 'all'
 
   function clearFilters() {
@@ -118,7 +113,7 @@ export function EventsPage() {
 
   return (
     <div className="records-page">
-      <PageHeader title="Events" description="Inspect incoming events and their delivery outcomes." actions={<PlaygroundLink />} />
+      <PageHeader title="Events" description="Inspect incoming events and their delivery outcomes." />
       {events.isLoading ? <TableSkeleton rows={8} columns={5} />
         : events.isError ? <RequestError error={events.error} onRetry={() => void events.refetch()} />
         : <RecordsTable
@@ -142,6 +137,20 @@ export function EventsPage() {
   )
 }
 
+function LiveAssociatedDeliveries({ eventId }: { eventId: number }) {
+  const deliveries = useLiveDeliveries()
+
+  if (deliveries.isLoading) return <TableSkeleton columns={5} rows={3} />
+  if (deliveries.isError) return <RequestError error={deliveries.error} onRetry={() => void deliveries.refetch()} />
+  return (
+    <LiveDeliveryTable
+      rows={(deliveries.data ?? []).filter(({ event_id }) => event_id === eventId)}
+      showEvent={false}
+      empty={<EmptyRecords title="No deliveries for this event" />}
+    />
+  )
+}
+
 export function EventDetailsPage() {
   const params = useParams()
   const id = getRecordId(params.id ?? params.eventId)
@@ -151,12 +160,11 @@ export function EventDetailsPage() {
   const deliveries = useMemo(() => getDeliveryRows(demo.data).filter(({ delivery }) => delivery.event_id === id), [demo.data, id])
   const record = event.data
   const title = record ? formatId('event', record.id, mode) : 'Event details'
-  const missing = event.error instanceof ApiError && event.error.status === 404
+  const missing = event.error instanceof ApiError && (mode === 'demo' || event.error.status === 404)
 
   return (
     <div className="records-page">
-      <BackToRecords to="/events">Events</BackToRecords>
-      <PageHeader title={title} description={record?.event_type} />
+      <PageHeader title={title} />
       {id === undefined ? <StatePanel title="Event not found" description="The event ID in this URL is invalid." icon={<Radio size={19} />} />
         : event.isLoading ? <TableSkeleton columns={3} rows={3} />
         : missing ? <StatePanel title="Event not found" description="This event does not exist in the current mode." icon={<Radio size={19} />} />
@@ -172,7 +180,7 @@ export function EventDetailsPage() {
           <section className="records-detail-section" aria-labelledby="event-deliveries">
             <h2 id="event-deliveries">Associated deliveries</h2>
             {mode === 'live'
-              ? <StatePanel title="Delivery history unavailable" description="The API does not expose deliveries for events yet." icon={<Send size={19} />} />
+              ? <LiveAssociatedDeliveries eventId={record.id} />
               : demo.isLoading ? <TableSkeleton columns={5} rows={3} />
               : demo.isError ? <RequestError error={demo.error} onRetry={() => void demo.refetch()} />
               : <DeliveryTable rows={deliveries} columnsToHide={['event_id', 'event_type', 'updated_at']} empty={<EmptyRecords title="No deliveries for this event" />} />}

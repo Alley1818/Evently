@@ -1,12 +1,7 @@
-import { ArrowLeft, Inbox } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button, CopyButton, StatePanel } from '@/components/shared/ui'
 import './records.css'
-
-export function BackToRecords({ to, children }: { to: string; children: ReactNode }) {
-  return <Link className="records-back" to={to}><ArrowLeft size={15} aria-hidden="true" />{children}</Link>
-}
 
 export function DetailFields({ fields }: { fields: { label: string; value: ReactNode }[] }) {
   return (
